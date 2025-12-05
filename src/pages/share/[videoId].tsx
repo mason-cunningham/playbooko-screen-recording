@@ -7,7 +7,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { getTime } from "~/utils/getTime";
 import { ShareModal } from "~/components/ShareModal";
-import { useSession } from "next-auth/react";
 import VideoMoreMenu from "~/components/VideoMoreMenu";
 import ProfileMenu from "~/components/ProfileMenu";
 import { usePostHog } from "posthog-js/react";
@@ -16,10 +15,11 @@ import recordVideoModalOpen from "~/atoms/recordVideoModalOpen";
 import VideoRecordModal from "~/components/VideoRecordModal";
 import defaultProfileIcon from "~/assets/default profile icon.jpg";
 import VideoPlayer from "~/components/VideoPlayer";
+import { useAuth } from "~/pages/_app";
 
 const VideoList: NextPage = () => {
   const router = useRouter();
-  const { status, data: session } = useSession();
+  const { user, loading } = useAuth();
   const { videoId } = router.query as { videoId: string };
   const posthog = usePostHog();
   const [, setRecordOpen] = useAtom(recordVideoModalOpen);
@@ -53,7 +53,6 @@ const VideoList: NextPage = () => {
     setRecordOpen(true);
 
     posthog?.capture("open record video modal", {
-      stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
       cta: "shared video",
     });
   };
@@ -103,13 +102,13 @@ const VideoList: NextPage = () => {
             <span>Snapify</span>
           </Link>
           <div className="flex items-center justify-center">
-            {video && video.userId === session?.user.id ? (
+            {video && video.userId === user?.id ? (
               <>
                 <VideoMoreMenu video={video} />
                 <ShareModal video={video} />
               </>
             ) : null}
-            {status === "authenticated" ? (
+            {user ? (
               <>
                 <Link href="/videos">
                   <span className="cursor-pointer rounded border border-[#0000001a] px-2 py-2 text-sm text-[#292d34] hover:bg-[#fafbfc]">

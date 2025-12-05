@@ -3,7 +3,6 @@ import Head from "next/head";
 
 import { api } from "~/utils/api";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { getTime } from "~/utils/getTime";
 import ProfileMenu from "~/components/ProfileMenu";
@@ -20,19 +19,20 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { env } from "~/env.mjs";
+import { useAuth } from "~/pages/_app";
 
 const VideoList: NextPage = () => {
   const [, setRecordOpen] = useAtom(recordVideoModalOpen);
   const [, setUploadOpen] = useAtom(uploadVideoModalOpen);
   const [, setPaywallOpen] = useAtom(paywallAtom);
   const router = useRouter();
-  const { status, data: session } = useSession();
+  const { user, loading } = useAuth();
   const { data: videos, isLoading } = api.video.getAll.useQuery();
   const posthog = usePostHog();
   const searchParams = useSearchParams();
   const [closeWindow, setCloseWindow] = useState<boolean>(false);
 
-  if (status === "unauthenticated") {
+  if (!loading && !user) {
     void router.replace("/sign-in");
   }
 
@@ -49,27 +49,21 @@ const VideoList: NextPage = () => {
     setRecordOpen(true);
 
     posthog?.capture("open record video modal", {
-      stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
       cta: "empty video list page",
     });
   };
 
   const openUploadModal = () => {
-    if (
-      session?.user.stripeSubscriptionStatus === "active" ||
-      !env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    ) {
+    if (user || !env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
       setUploadOpen(true);
 
       posthog?.capture("open upload video modal", {
-        stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
         cta: "empty video list page",
       });
     } else {
       setPaywallOpen(true);
 
       posthog?.capture("hit video upload paywall", {
-        stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
         cta: "empty video list page",
       });
     }
@@ -112,7 +106,6 @@ const VideoList: NextPage = () => {
             <Paywall />
 
             {videos?.length &&
-            session?.user?.stripeSubscriptionStatus !== "active" &&
             1 + 1 === 3 ? (
               <div className="mr-4 flex max-h-[35px] flex-col items-center justify-center rounded px-2 py-2 text-sm text-[#6c6685]">
                 <span>{videos.length}/10 videos</span>
@@ -129,7 +122,7 @@ const VideoList: NextPage = () => {
               </div>
             ) : null}
             <NewVideoMenu />
-            {status === "authenticated" && (
+            {user && (
               <div className="ml-4 flex items-center justify-center">
                 <ProfileMenu />
               </div>

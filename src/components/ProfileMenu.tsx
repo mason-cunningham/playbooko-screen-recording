@@ -1,17 +1,17 @@
 import { Menu, Transition } from "@headlessui/react";
 import { Fragment } from "react";
-import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { api } from "~/utils/api";
 import { usePostHog } from "posthog-js/react";
 import defaultProfileIcon from "~/assets/default profile icon.jpg";
 import Image from "next/image";
+import { useAuth } from "~/pages/_app";
 
 export default function ProfileMenu() {
   const { mutateAsync: createBillingPortalSession } =
     api.stripe.createBillingPortalSession.useMutation();
   const { push } = useRouter();
-  const { data: session } = useSession();
+  const { user, signOut: authSignOut } = useAuth();
   const posthog = usePostHog();
 
   const openBillingSettings = () => {
@@ -21,14 +21,12 @@ export default function ProfileMenu() {
       }
     });
 
-    posthog?.capture("billing settings opened", {
-      stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
-    });
+    posthog?.capture("billing settings opened");
   };
 
   const handleSignOut = () => {
     if (posthog?.__loaded) posthog?.reset();
-    void signOut();
+    void authSignOut();
   };
 
   return (
@@ -37,7 +35,7 @@ export default function ProfileMenu() {
         <span className="sr-only">Open user menu</span>
         <Image
           className="h-8 w-8 rounded-full"
-          src={session?.user?.image ?? defaultProfileIcon}
+          src={user?.user_metadata?.avatar_url ?? defaultProfileIcon}
           alt="profile icon"
           width={32}
           height={32}

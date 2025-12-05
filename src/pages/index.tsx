@@ -1,6 +1,5 @@
 import { type NextPage } from "next";
 import Head from "next/head";
-import { useSession } from "next-auth/react";
 import { useFeatureFlagEnabled, usePostHog } from "posthog-js/react";
 import { useAtom } from "jotai";
 import recordVideoModalOpen from "~/atoms/recordVideoModalOpen";
@@ -19,19 +18,20 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import StarIcon from "~/assets/StarIcon";
 import Paywall from "~/components/Paywall";
+import { useAuth } from "~/pages/_app";
 
 const Home: NextPage = () => {
   const [recordModalOpen, setRecordOpen] = useAtom(recordVideoModalOpen);
   const posthog = usePostHog();
-  const session = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const showDemoButton = useFeatureFlagEnabled("show-demo-button");
 
   useEffect(() => {
-    if (session.status === "authenticated" && !recordModalOpen) {
+    if (!loading && user && !recordModalOpen) {
       void router.push("/videos");
     }
-  }, [session, router]);
+  }, [user, loading, router, recordModalOpen]);
 
   const openRecordModal = () => {
     if (

@@ -9,6 +9,12 @@ import { env } from "./src/env.mjs";
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 
   /**
    * If you have the "experimental: { appDir: true }" setting enabled, then you

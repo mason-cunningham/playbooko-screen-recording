@@ -12,7 +12,7 @@ export const getOrCreateStripeCustomerIdForUser = async ({
   prisma: PrismaClient;
   userId: string;
 }): Promise<string | null> => {
-  const user = await prisma.user.findUnique({
+  const user = await prisma.userProfileProfile.findUnique({
     where: {
       id: userId,
     },
@@ -35,7 +35,7 @@ export const getOrCreateStripeCustomerIdForUser = async ({
   });
 
   // update with new customer id
-  const updatedUser = await prisma.user.update({
+  const updatedUser = await prisma.userProfileProfile.update({
     where: {
       id: userId,
     },
@@ -70,7 +70,7 @@ export const handleInvoicePaid = async ({
   const userId = subscription.metadata.userId;
 
   // update user with subscription data
-  await prisma.user.update({
+  await prisma.userProfile.update({
     where: {
       id: userId,
     },
@@ -105,7 +105,7 @@ export const handleSubscriptionCreatedOrUpdated = async ({
   const userId = subscription.metadata.userId;
 
   // update user with subscription data
-  await prisma.user.update({
+  await prisma.userProfile.update({
     where: {
       id: userId,
     },
@@ -137,7 +137,7 @@ export const handleSubscriptionCanceled = async ({
   const userId = subscription.metadata.userId;
 
   // remove subscription data from user
-  await prisma.user.update({
+  await prisma.userProfile.update({
     where: {
       id: userId,
     },

@@ -15,13 +15,12 @@
  * These allow you to access things when processing a request, like the database, the session, etc.
  */
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
-import { type Session } from "next-auth";
-
-import { getServerAuthSession } from "~/server/auth";
+import { type AuthSession, getServerAuthSession } from "~/server/auth";
 import { prisma } from "~/server/db";
+import { supabaseServer } from "~/server/supabase";
 
 type CreateContextOptions = {
-  session: Session | null;
+  session: AuthSession | null;
   req: NextApiRequest;
   res: NextApiResponse;
 };
@@ -40,7 +39,7 @@ const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
     prisma,
-    s3,
+    supabase: supabaseServer,
     posthog,
     stripe,
     req: opts.req,
@@ -77,7 +76,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { s3 } from "~/server/aws/s3";
 import { stripe } from "~/server/stripe";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { posthog } from "~/server/posthog";

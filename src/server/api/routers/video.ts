@@ -1,22 +1,15 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
-import { env } from "~/env.mjs";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { TRPCError } from "@trpc/server";
+import { env } from "~/env.mjs";
 
 export const videoRouter = createTRPCRouter({
   getAll: protectedProcedure.query(
-    async ({ ctx: { prisma, session, s3, posthog } }) => {
+    async ({ ctx: { prisma, session, supabase, posthog } }) => {
       const videos = await prisma.video.findMany({
         where: {
           userId: session.user.id,
@@ -34,15 +27,14 @@ export const videoRouter = createTRPCRouter({
 
       const videosWithThumbnailUrl = await Promise.all(
         videos.map(async (video) => {
-          const thumbnailUrl = await getSignedUrl(
-            s3,
-            new GetObjectCommand({
-              Bucket: env.AWS_BUCKET_NAME,
-              Key: video.userId + "/" + video.id + "-thumbnail",
-            })
-          );
+          const { data } = await supabase.storage
+            .from("videos")
+            .createSignedUrl(
+              `${video.userId}/${video.id}-thumbnail`,
+              60 * 60
+            );
 
-          return { ...video, thumbnailUrl };
+          return { ...video, thumbnailUrl: data?.signedUrl || "" };
         })
       );
 
@@ -52,7 +44,7 @@ export const videoRouter = createTRPCRouter({
   get: publicProcedure
     .input(z.object({ videoId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const { s3, posthog, session, prisma } = ctx;
+      const { supabase, posthog, session, prisma } = ctx;
       const video = await prisma.video.findUnique({
         where: {
           id: input.videoId,
@@ -86,26 +78,23 @@ export const videoRouter = createTRPCRouter({
         void posthog?.shutdownAsync();
       }
 
-      const getObjectCommand = new GetObjectCommand({
-        Bucket: env.AWS_BUCKET_NAME,
-        Key: video.userId + "/" + video.id,
-      });
+      const { data: videoData } = await supabase.storage
+        .from("videos")
+        .createSignedUrl(`${video.userId}/${video.id}`, 60 * 60);
 
-      const signedUrl = await getSignedUrl(s3, getObjectCommand);
+      const { data: thumbnailData } = await supabase.storage
+        .from("videos")
+        .createSignedUrl(`${video.userId}/${video.id}-thumbnail`, 60 * 60);
 
-      const thumbnailUrl = await getSignedUrl(
-        s3,
-        new GetObjectCommand({
-          Bucket: env.AWS_BUCKET_NAME,
-          Key: video.userId + "/" + video.id + "-thumbnail",
-        })
-      );
-
-      return { ...video, video_url: signedUrl, thumbnailUrl };
+      return {
+        ...video,
+        video_url: videoData?.signedUrl || "",
+        thumbnailUrl: thumbnailData?.signedUrl || "",
+      };
     }),
   getUploadUrl: protectedProcedure
     .input(z.object({ key: z.string() }))
-    .mutation(async ({ ctx: { prisma, session, s3, posthog }, input }) => {
+    .mutation(async ({ ctx: { prisma, session, supabase, posthog }, input }) => {
       const { key } = input;
 
       const videos = await prisma.video.findMany({
@@ -152,27 +141,21 @@ export const videoRouter = createTRPCRouter({
         },
       });
 
-      const signedVideoUrl = await getSignedUrl(
-        s3,
-        new PutObjectCommand({
-          Bucket: env.AWS_BUCKET_NAME,
-          Key: session.user.id + "/" + video.id,
-        })
-      );
+      const { data: videoUploadData } = await supabase.storage
+        .from("videos")
+        .createSignedUploadUrl(`${session.user.id}/${video.id}`);
 
-      const signedThumbnailUrl = await getSignedUrl(
-        s3,
-        new PutObjectCommand({
-          Bucket: env.AWS_BUCKET_NAME,
-          Key: video.userId + "/" + video.id + "-thumbnail",
-        })
-      );
+      const { data: thumbnailUploadData } = await supabase.storage
+        .from("videos")
+        .createSignedUploadUrl(`${video.userId}/${video.id}-thumbnail`);
 
       return {
         success: true,
         id: video.id,
-        signedVideoUrl,
-        signedThumbnailUrl,
+        signedVideoUrl: videoUploadData?.signedUrl || "",
+        signedThumbnailUrl: thumbnailUploadData?.signedUrl || "",
+        videoToken: videoUploadData?.token || "",
+        thumbnailToken: thumbnailUploadData?.token || "",
       };
     }),
   setSharing: protectedProcedure
@@ -321,7 +304,7 @@ export const videoRouter = createTRPCRouter({
         videoId: z.string(),
       })
     )
-    .mutation(async ({ ctx: { prisma, session, s3, posthog }, input }) => {
+    .mutation(async ({ ctx: { prisma, session, supabase, posthog }, input }) => {
       const deleteVideo = await prisma.video.deleteMany({
         where: {
           id: input.videoId,
@@ -342,25 +325,21 @@ export const videoRouter = createTRPCRouter({
       });
       void posthog?.shutdownAsync();
 
-      const deleteVideoObject = await s3.send(
-        new DeleteObjectCommand({
-          Bucket: env.AWS_BUCKET_NAME,
-          Key: session.user.id + "/" + input.videoId,
-        })
-      );
+      const { data: deleteVideoData, error: deleteVideoError } =
+        await supabase.storage
+          .from("videos")
+          .remove([`${session.user.id}/${input.videoId}`]);
 
-      const deleteThumbnailObject = await s3.send(
-        new DeleteObjectCommand({
-          Bucket: env.AWS_BUCKET_NAME,
-          Key: session.user.id + "/" + input.videoId + "-thumbnail",
-        })
-      );
+      const { data: deleteThumbnailData, error: deleteThumbnailError } =
+        await supabase.storage
+          .from("videos")
+          .remove([`${session.user.id}/${input.videoId}-thumbnail`]);
 
       return {
         success: true,
         deleteVideo,
-        deleteVideoObject,
-        deleteThumbnailObject,
+        deleteVideoObject: deleteVideoData,
+        deleteThumbnailObject: deleteThumbnailData,
       };
     }),
 });

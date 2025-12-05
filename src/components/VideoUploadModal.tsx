@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { useAtom } from "jotai";
 import uploadVideoModalOpen from "~/atoms/uploadVideoModalOpen";
 import { usePostHog } from "posthog-js/react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "~/pages/_app";
 import generateThumbnail from "~/utils/generateThumbnail";
 
 export default function VideoUploadModal() {
@@ -18,7 +18,7 @@ export default function VideoUploadModal() {
   const apiUtils = api.useContext();
   const videoRef = useRef<null | HTMLVideoElement>(null);
   const posthog = usePostHog();
-  const { data: session } = useSession();
+  const { user } = useAuth();
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files) {
@@ -29,9 +29,7 @@ export default function VideoUploadModal() {
   function closeModal() {
     setOpen(false);
 
-    posthog?.capture("cancel video upload", {
-      stripeSubscriptionStatus: session?.user.stripeSubscriptionStatus,
-    });
+    posthog?.capture("cancel video upload");
   }
 
   const handleSubmit = async (): Promise<void> => {
